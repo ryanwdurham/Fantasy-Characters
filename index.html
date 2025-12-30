@@ -1217,29 +1217,20 @@ async function generatePortrait(character) {
     spinner.classList.add('active');
 
     const prompt = createImagePrompt(character);
-    
-    // Simplified prompt for better compatibility
-    const simplePrompt = `fantasy RPG character portrait, ${character.race} ${character.charClass}, ${character.hairColor} hair, ${character.eyeColor} eyes, ${character.armorStyle}, ${character.personality} expression, high quality digital art`;
+    const simplePrompt = `${character.race} ${character.charClass} fantasy RPG character, ${character.hairColor} hair, ${character.eyeColor} eyes, detailed portrait`;
 
-    console.log('Starting image generation...');
-
-    // Service 1: Try Hugging Face FIRST if they have a key
+    // Check for HF key first
     const hfKey = localStorage.getItem('hf_api_key');
+    
     if (hfKey) {
         try {
-            console.log('Trying Hugging Face with your API key...');
-            const response = await fetch('https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell', {
+            const response = await fetch('https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${hfKey}`,
-                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    inputs: simplePrompt,
-                    parameters: {
-                        num_inference_steps: 4,
-                        guidance_scale: 0
-                    }
+                    inputs: simplePrompt
                 })
             });
 
@@ -1248,121 +1239,56 @@ async function generatePortrait(character) {
                 const url = URL.createObjectURL(blob);
                 const img = document.createElement('img');
                 img.src = url;
-                img.alt = `${character.name} portrait`;
                 img.style.width = '100%';
                 img.style.height = '100%';
                 img.style.objectFit = 'cover';
-                
-                await new Promise((resolve) => {
-                    img.onload = () => {
-                        container.innerHTML = '';
-                        container.appendChild(img);
-                        spinner.classList.remove('active');
-                        container.appendChild(spinner);
-                        console.log('✅ Hugging Face SUCCESS!');
-                        resolve();
-                    };
-                });
-                return;
-            } else {
-                const errorText = await response.text();
-                console.log('Hugging Face failed:', response.status, errorText);
-            }
-        } catch (e) {
-            console.log('Hugging Face error:', e.message);
-        }
-    }
-
-    // Service 2: Image.pollinations.ai with different parameters
-    const services = [
-        {
-            name: 'Pollinations Flux',
-            url: () => {
-                const timestamp = Date.now();
-                return `https://image.pollinations.ai/prompt/${encodeURIComponent(simplePrompt)}?model=flux&width=768&height=1024&seed=${timestamp}&nologo=true&enhance=false`;
-            }
-        },
-        {
-            name: 'Pollinations Turbo',
-            url: () => {
-                const seed = Math.floor(Math.random() * 1000000);
-                return `https://image.pollinations.ai/prompt/${encodeURIComponent(simplePrompt)}?model=turbo&width=512&height=768&seed=${seed}&nologo=true`;
-            }
-        },
-        {
-            name: 'Pollinations Default',
-            url: () => {
-                return `https://image.pollinations.ai/prompt/${encodeURIComponent(simplePrompt.substring(0, 250))}?width=512&height=768&nologo=true`;
-            }
-        }
-    ];
-
-    for (const service of services) {
-        try {
-            console.log(`Trying ${service.name}...`);
-            const imageUrl = service.url();
-            
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            
-            const success = await new Promise((resolve) => {
-                const timeout = setTimeout(() => {
-                    console.log(`${service.name} timed out`);
-                    resolve(false);
-                }, 15000);
                 
                 img.onload = () => {
-                    clearTimeout(timeout);
-                    // Check if image actually loaded (not an error page)
-                    if (img.naturalWidth > 100 && img.naturalHeight > 100) {
-                        console.log(`✅ ${service.name} SUCCESS!`);
-                        resolve(true);
-                    } else {
-                        console.log(`${service.name} returned invalid image`);
-                        resolve(false);
-                    }
+                    container.innerHTML = '';
+                    container.appendChild(img);
+                    spinner.classList.remove('active');
+                    container.appendChild(spinner);
                 };
-                
-                img.onerror = () => {
-                    clearTimeout(timeout);
-                    console.log(`${service.name} failed`);
-                    resolve(false);
-                };
-                
-                img.src = imageUrl;
-            });
-            
-            if (success) {
-                container.innerHTML = '';
-                img.alt = `${character.name} portrait`;
-                img.style.width = '100%';
-                img.style.height = '100%';
-                img.style.objectFit = 'cover';
-                container.appendChild(img);
-                spinner.classList.remove('active');
-                container.appendChild(spinner);
                 return;
             }
-            
-            // Wait a bit before trying next service
-            await new Promise(r => setTimeout(r, 1000));
-            
         } catch (e) {
-            console.log(`${service.name} error:`, e);
+            console.log('HF error:', e);
         }
     }
-    
-    // All services failed
-    spinner.classList.remove('active');
-    error.innerHTML = `⚠️ <strong>All free services are currently overloaded.</strong><br><br>
-        Solutions:<br>
-        1. Wait 5-10 minutes and try again<br>
-        2. Your Hugging Face key might need activation (can take a few minutes after creation)<br>
-        3. Get a new HF key at <a href="https://huggingface.co/settings/tokens" target="_blank" style="color: #feca57;">huggingface.co/settings/tokens</a><br>
-        4. Try at a different time when services are less busy`;
-    error.classList.add('active');
-}
 
+    // Fallback: Try Picsum for placeholder
+    try {
+        const seed = encodeURIComponent(character.name + character.race + character.charClass);
+        const imageUrl = `https://source.unsplash.com/768x1024/?fantasy,portrait,${character.race}`;
+        
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'cover';
+        
+        img.onload = () => {
+            container.innerHTML = '';
+            container.appendChild(img);
+            spinner.classList.remove('active');
+            container.appendChild(spinner);
+        };
+        
+        img.onerror = () => {
+            spinner.classList.remove('active');
+            error.innerHTML = `Unable to generate image. The free API services are currently unavailable.<br><br>
+            <strong>To fix this:</strong><br>
+            1. Add your free Hugging Face API key above (takes 2 min)<br>
+            2. Or try again later when services are less busy`;
+            error.classList.add('active');
+        };
+        
+    } catch (e) {
+        spinner.classList.remove('active');
+        error.textContent = 'Image generation unavailable. Please add a Hugging Face API key.';
+        error.classList.add('active');
+    }
+}
        async function downloadCharacter() {
     try {
         const name = document.getElementById('displayName').textContent;
